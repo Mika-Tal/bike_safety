@@ -1,11 +1,14 @@
 """
 Created on Tue Nov 24 14:27:17 2020
-@author: Mika, Christian 
+@author: Jamila, Kumar, Mika, Christian 
 """
 
 import pandas as pd 
 import json
 import requests
+from geopy import distance
+from geopy.geocoders import Nominatim
+
 
 def welcome():
     print('Welcome to Bike Safe!')
@@ -17,7 +20,6 @@ def Weather():
     #API call and format response as json
     headers = {'Content-Type': 'application/json'}
     url = 'http://api.openweathermap.org/data/2.5/weather?lat=40.440624&lon=-79.9959&''appid='+APIkey
-
     response = requests.get(url, headers = headers)
     if response.status_code == 200:
         data = json.loads(response.content.decode('utf-8'))    
@@ -30,32 +32,53 @@ def Weather():
         print('Current weather in downtown Pittsburgh: %s, temperature %.2f F'%(weather['description'],temp))
 
 #Get user input- current and destination addresses
-def addresses ():
-    CurrentAddress = input("Enter Current Street Name (street name and number):")
-    atLocation = input("Is your current address same as desitnation (Y/N):")
+def getAddresses():
+    CurrentAddress = input("Enter current address (number, street name): ")
+    atLocation = input("Is your current address same as destination (Y/N):")
     if atLocation == 'Y':
         destAddress = CurrentAddress
     else:
-        destAddress = input("Enter Destination Address (street name and number):")
+        destAddress = input("Enter destination address (number, street name): ")
+    return(destAddress)
+
+# Get user input- type of coverage
+def coverageType():
+    choice = input('Enter where do you want to park your bike\n Outdoor, Indoor, or No Preference:')
+    if choice == 'Outdoor':
+        choice = 'Outdoor'
+    elif choice == 'Indoor':
+        choice = 'Indoor/Covered'
+    else:
+        choice = 'NP'
+    return (choice)
+
+def addtoLoc(destAddress):    
     locator = Nominatim(user_agent="myGeocoder")
-    location = locator.geocode(DestinationAddress)
-    "Latitude = {}, Longitude = {}".format(location.latitude, location.longitude)
-    destAddress = input('Enter your destination address: ')
-    print("Outdoor\n", "Indoor\n","No Preference\n")
-    Choice = input("Enter where do you want to park your bike:")
-    return Choice
+    location = locator.geocode(destAddress+',Pittsburgh')
+    destCoor=(location.longitude,location.latitude)
+    return destCoor
 
-CurrentAddress = input("Enter Current Address:")
-CurrentDesti = input("Is your current address same as desitnation:")
-if CurrentDesti == 'Y':
-    DestinationAddress = CurrentAddress
-else DestinationAddress = input("Enter Destination Address:")
-
+#take coordinates and return bike rack lat/long within a .25 mile radius and if inside or outside
+   
+def rackLoc(destCoor,choice): 
+    racks_df = pd.read_csv('bike_rack_location.csv')
+    racks_df = racks_df[['Longitude', 'Latitude', 'Weather Coverage']] 
+    Distance = []
+    for i in racks_df.index: 
+        point = [str(racks_df['Longitude'][i]) , str(racks_df['Latitude'][i])]
+        dist = distance.distance(destCoor, point).feet
+        Distance.append(dist)
+    racks_df['Distance'] = Distance
+    if choice == 'NP':
+        return(racks_df[racks_df['Distance'] <= 1320])
+    else: 
+        racks_df = racks_df[racks_df['Weather Coverage'] == choice]
+        return(racks_df[racks_df['Distance'] <= 1320])
 
 #initializing locations from WPRDC csv file
 #return: list of locations of all bike racks 
-def findLocations():
-    bike_locations = pd.read_csv("bike_rack_locations.csv")
+def findLocations(destCoor):
+    bike_locations = pd.read_csv("bike_rack_location.csv")
     bike_locations_loc = bike_locations[['Longitude', 'Latitude']]
     return bike_locations_loc
 
